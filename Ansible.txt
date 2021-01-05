@@ -1,0 +1,745 @@
+########################################## Ansible ######################################################################
+its a powerful automation engine build on top of python, uses ssh(for linux) & WinRM(for windows) to connect to managed nodes from control node.
+its useful for provisioning, configuration management, application deployment, etc.
+/etc/ansible --> holds all ansible related files
+ansible --version
+yum install epel-release   (epel-->extra packages for enterprise linux)
+yum install ansible
+ansible can be installed on centos,rhel and ubuntu(not aix, windows) and suse
+managed nodes can be windows machine, but control node should be centos or ubuntu or rhel or suse
+ansible uses push based mechanisms via ssh connection or WinRM to accomplish its tasks
+
+adhoc command options:
+--become or -b  ----> to become root(sudo access)
+-k (ask for password)
+-v or -vvv or -vvvv
+-m for module
+-a for module arguments
+-i for inventory file
+-B  'seconds' hold the adhoc in background for how many seconds
+-T 'timeout' for timeout
+
+/etc/ansible/playbook.retry as a inventory  --> when a playbook stop at certain step, it will be stored under this mentioned path, so that on next execution we use this path as inventory to continue the execution of tasks
+ansible-playbook playbook1.yml --list-tasks --> list the tasks inside the playbook
+ansible-playbook playbook1.yml --list-hosts --> list hosts under the playbook 
+ansible-playbook playbook1.yml --list-tags  --> list tags under the playbook
+ansible-playbook playbook1.yml --step --> asks for permissions on each task
+
+###################################################### inventory ############################################################################################
+inventory --> contains information about target nodes(managed nodes)   option (-i) to choose the different inventory created by us
+default location for it is /etc/ansible/hosts
+types of inventory--> static(plain text hold hostname or ip address)
+dynamic --> script file(python or PHP or any)
+
+ansible-alias
+ansible_connection
+ansible_user
+ansible_ssh_pass
+ansible_port
+
+vi /etc/ansible/hosts
+[linux-vm]
+vm2 ansible_host=linux-vm2.example.com --> ansible alias example
+
+[web-vm]
+webnode[1:2].ims.com  --> entering two server names in single line 
+
+[db-vm]
+dbnodes[1:2].ims.com
+########################################## parameters in the inventory file #####################################################################################
+[linux-vm]
+vm2 ansible_host=linux-vm2.example.com ansible_connection=ssh ansible_user=ansuser ansible_ssh_pass=password ansible_port=22
+
+
+[web-db:children]  --> here we created sub nodes(nested group) children is a keyword for it
+web-vm
+db-vm
+
+################################################ Working with the inventory ####################################################################################################################
+vi /etc/ansible/hosts
+[linux-vm]
+vm2 ansible_host=linux-vm2.example.com
+
+su - ansuser
+ansible all -m ping
+-m --> option m to use the python module to ping, because the ansible runs on top of python
+
+ansible linux-vm -m command -a "free -gh"
+-m command --> python module of command helps to add the os command
+-a --> to give us space to enter the command we want
+
+ansible linux-vm2.example.com -m copy -a "src=sample.txt dest=/home/ansuser/"
+sudo ansible linux-vm2.example.com -m yum -a "name=httpd state=present"
+ansible-doc is a utility to view the modules available for ansible
+ansible-doc -l --> to list the inbuild python modules available
+ansible-doc -s yum --> gives information about the module yum and their available properties also
+
+the above commands are adhoc commands/ansible commands to run without yaml file
+
+######################################################### Exercises #####################################################################################################################
+ansible all -m yum -a "name=vsftpd state=present" --become
+ansible all -m service -a "name=vsftpd state=started enabled=yes" --become
+ansible all -m selinux -a "policy=targeted state=permissive" --become
+ansible all -m command -a "df -kh"
+ansible all -m user -a "user=mario1 password=mario@123"
+
+--become is to allow the command to execute as sudo
+
+inside ansible.cfg we have parameter called inventory=/etc/ansible/hosts  here we have to change the path if we need to alter
+
+############################################################ YAML (YET ANOTHER MARKUP LANGUAGE) ###########################################################################################################################
+ansible playbooks are written in yaml format
+ansible playbooks is written in json format
+fruits:   --> to assign list of values in yaml file
+		- apple 
+		- orange 
+		- mango 
+
+################################################################################################################################################################################
+
+we can store variables in a file and use it while executing the playbook
+/vars/external_vars.yml
+---
+somevar: somevalue
+password: infy@123
+...
+
+vars_files:
+  - /vars/external_vars.yml
+  
+
+
+############################################################ PLAYBOOK #######################################################################################################################
+
+---    #start of the playbook
+-	name: play for various tasks
+	hosts: all
+	user: ansuser
+	become: true
+	tasks:
+		- name: execute a command date
+		  command: date
+		- name: execute a shell script
+		  script: script1.shell
+		- name: install httpd packages
+		  yum:
+			   name=httpd
+			   state=present
+		- name: start httpd service
+		  service:
+		           name=httpd
+				   state=started
+...    #end of the playbook
+#      #to add comment on playbook
+
+ansible-playbook playbook1.yml
+ansible-playbook -help
+
+$$$$$$$$ ansible all -m shell -a "date && hostname" or ansible all -a "bash -c 'date && hostname'" $$$$$$$$$$$$$$$$$$$$$$$$$$$
+
+- name: remove the /dev/sdb1 partition
+  parted: device=/dev/sdb number=1 state=absent
+  
+/dev/vg1/lv01
+- name: extend the logical volume
+  lvol: vg=vg1 lv=lv01 size=200
+  
+- name: restart the httpd service
+  service: name=httpd state=restarted
+ 
+######################################################## VARIABLES ################################################################################################################## 
+**************************** playbook for selinux with VARIABLES  ********************************************
+below can be run with ansible-playbook selinux-playbook1
+---
+- name: play for testing vms
+  user: root
+  hosts: testing
+  vars:
+    status: disabled
+  tasks:
+    - name: play to change the selinux status
+	  lineinfile:
+	    path: /etc/selinux/config
+		regex: ^SELINUX=
+		line: SELINUX={{ status }}
+...
+
+$$$$$$$$$alternative$$$$$$$$$$$$$$$$
+lineinfile:
+  path: /etc/ssh/sshd_config
+  regex: '^PermitRootLogin'
+  replace: PermitRootLogin=no
+  backup: yes
+$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$  
+  
+ OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOORRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
+ 
+below can be run with ansible-playbook selinux-playbook1 -e status=disabled
+
+---
+- name: play for testing vms
+  user: root
+  hosts: testing
+  tasks:
+    - name: play to change the selinux status
+	  lineinfile:
+	    path: /etc/selinux/config
+		regex: '^SELINUX='
+		line: 'SELINUX={{ status }}'
+...
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ansible-playbook  playbook1.yml -e @ext_var1.json                            %% 
+ansible-playbook playbook1.yml --extra-vars "hosts=testing user=root"        %% 
+ansible-playbook playbook1.yml -e hosts=testing -e user=root                 %%
+ansible-playbook playbook1.yml -e "hosts=testing user=root"                  %%
+vars_files:                                                                  %%
+  - /root/ext_var1.yml                                                       %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+examples using variables:
+
+ansible-playbook variable-playbook1.yml -e user=root -e host=testing -e package=httpd
+ansible-playbook variable-playbook1.yml -e "user=root host=testing package=httpd"
+ansible-playbook variable-playbook1.yml --extra-vars "user=root host=testing package=httpd"
+vi external-vars.json
+ansible-playbook variable-playbook1.yml -e @external-vars.json
+
+  [root@linux-vm1 playbook]# cat variable-playbook1.yml 
+---
+- name: playbook to play with variables
+  user: '{{user}}'
+  hosts: '{{host}}'
+  tasks:
+    - name: install httpd package
+      yum: name={{package}} state=present
+...
+
+[root@linux-vm1 playbook]# cat variable-playbook2.yml 
+---
+- name: playbook to play with variables
+  user: '{{user}}'
+  hosts: '{{host}}'
+  vars_files:
+    - /root/playbook/external-variable.yml
+  tasks:
+    - name: install httpd package
+      yum: name={{package}} state=present
+...
+
+
+##################################################################################################################################################################################
+
+############################################### ANSIBLE CONDITIONAL AND LOOPS ####################################################################################################
+
+to list available plugins in loop, use below commands
+ansible-doc -t lookup -l
+ansible-doc -t lookup  <see specific plugin name>
+
+ansible-playbook conditional-playbook.yml
+---
+-  name: play to start httpd based on condition
+   user: root
+   hosts: testing
+   tasks:
+     - service: name=httpd state=started
+	   when: ansible_host == "linux-vm2.example.com        -------------> denotes condition
+...
+
+
+---
+- name: play to install packages in loop
+  user: root
+  hosts: testing
+  tasks:
+    - yum: name={{item}} state=latest
+	  with_items:          ----------------> denotes loop
+	    - vsftpd
+		- httpd
+		- telnet
+...
+
+loop:  -------------------------------> we can use this also instead of with_items
+  - vsftpd
+  - httpd
+  - telnet
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+tasks:                                                               %%
+  command: hostname                                                  %%
+  register: result    --> hostname is stored in the register         %%
+                                                                     %%
+ when register.stdout.find('dead')  != -1                            %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ 
+ 
+ 
+ [root@linux-vm1 playbook]# cat loop-playbook1.yml 
+---
+- name: play to create users
+  user: root
+  hosts: all
+  tasks:
+    - name: task to create users
+      user: name={{item}} state=present
+      with_items:
+        - l1
+        - l2
+... 
+[root@linux-vm1 playbook]# cat loop-file-playbook.yml 
+---
+- name: play to display file contents using loop
+  user: root
+  hosts: all
+  tasks:
+    - name: display content of the file
+      debug: msg={{item}} 
+      with_file:
+        - /etc/hosts
+        - /etc/resolv.conf
+...
+[root@linux-vm1 playbook]# cat loop-dictionary-playbook.yml 
+---
+- name: task to add users along with group
+  user: root
+  hosts: testing
+  tasks:
+    - user: name={{item.name}} state=present group={{item.group}}
+      with_items:
+        - {name: 'userid1', group: 'dict'}
+        - {name: 'userid2', group: 'dict'}
+        - {name: 'userid3', group: 'dict'}
+...
+
+
+######################################################################################################################################################################################
+
+############################################################ TAGS in ansible #########################################################################################################
+
+--skip-tags --> option to skip a particular tag in playbook
+- always  --> always the tag will run on playbook execution
+- never   --> the tag will never execute unless called specifically
+--start-at-task "name of task"  --> only start at task possible, no end at task option
+
+
+ansible-playbook tags-playbook.yml --tags "install httpd, start httpd"
+--- 
+- name: play to execute multiple tasks
+  user: root
+  hosts: testing
+  become: true
+  tasks:
+    - name: install httpd
+	  yum: name=httpd state=present
+	  tags:
+	    - install httpd
+	- name: start httpd
+	  service: name=httpd state=started
+	  tags:
+	    - start httpd
+	- name: command to display date
+	  command: date
+	  tags:
+	    - always               ------------------> due to this option always , this command will be executed even when there is no call for that tags
+	- name: execute a script
+	  shell: echo "hello" > /root/summa
+	  tags:
+	    - execute a script
+...
+		
+##############################################################################################################################################################################################
+
+################################################################# ANSIBLE VAULT ##########################################################################################################
+
+ansible-vault create new-playbook.yml
+ansible-playbook new-playbook.yml --ask-vault-pass
+ansible-vault encrypt already-created-playbook.yml
+ansible-vault edit new-playbook.yml
+ansible-playbook new-playbook.yml --vault-password-file
+ansible-vault view new-playbook.yml
+ansible-vault rekey new-playbook.yml
+ansible-vault encrypt string
+we can encrypt /etc/ansible/hosts
+ansible-vault [create,encrypt,decrypt,view,encrypt_string,rekey,edit] playbook-name.yml
+
+####################################################### playbook to create partitions & lvm ###################################################################################
+
+ansible-playbook part-playbook.yml    -----------> create a first partition and first lv called lvdata
+
+---
+- name: play to create a partition and lv
+  user: root
+  hosts: testing
+  become: true
+  tasks:
+    - name: create a first partition from /dev/sdb
+	  parted:
+	    device: /dev/sdb
+		number: 1
+		state: present
+		part_start: 2MiB
+		part_end: 5GiB
+	- name: create a vg called vgdata from /dev/sdb1
+	  lvg:
+	    vg: vgdata
+		pvs: /dev/sdb1
+	- name: create a new lv called lvdata from vgdata
+	  lvol:
+	    vg: vgdata
+		lv: lvdata
+		size: 4G
+	- name: create a filesystem of type xfs for lvdata
+	  filesystem:
+	    fstype: xfs
+		dev: /dev/vgdata/lvdata
+	- name: mount the lvdata on /lvdata in managed node linux-vm2
+	  mount:
+	    name: /lvdata
+		src: /dev/vgdata/lvdata
+		fstype: xfs
+		state: mounted
+...
+
+*********************************************************************************
+
+ansible-playbook part-playbook2.yml    -----------> create second lv called lvdata2
+
+---
+- name: play to create a second lv
+  user: root
+  hosts: testing
+  become: true
+  tasks:
+    - name: create a new lv called lvdata2 from vgdata
+	  lvol:
+	    vg: vgdata
+		lv: lvdata2
+		size: 500M
+	- name: create a filesystem of type xfs for lvdata
+	  filesystem:
+	    fstype: xfs
+		dev: /dev/vgdata/lvdata2
+	- name: mount the lvdata2 on /lvdata2 in managed node linux-vm2
+	  mount:
+	    name: /lvdata2
+		src: /dev/vgdata/lvdata2
+		fstype: xfs
+		state: mounted
+...
+
+
+*********************************************************************************
+
+
+
+ansible-playbook part-playbook3.yml -----> below yml file create a new partion (/dev/sdb2) and lv
+---
+- name: create a second partion and lvm
+  hosts: testing
+  user: root
+  become: true 
+  tasks:
+    - name: create 5GB partition
+      parted:
+        device: /dev/sdb
+        number: 2
+        state: present
+        part_start: 5.1GiB
+    - name: create vg
+      lvg:
+        vg: vgdata-second
+        pvs: /dev/sdb2
+    - name: create lv
+      lvol: 
+        vg: vgdata-second
+        lv: lvdata-second
+        size: +100%FREE
+    - name: create a file system
+      filesystem: 
+        fstype: xfs
+        dev: /dev/vgdata-second/lvdata-second
+    - name: mount logical volume
+      mount:
+        name: /lv-data-second
+        src: /dev/vgdata-second/lvdata-second
+        fstype: xfs
+        state: mounted
+...    
+
+############################################################################################################################################################################
+
+##################################################################### COMMAND MODULE PROPERTIES & PLAYBOOK EXAMPLES ###########################################################################################################
+command module parameters:
+command: cat resolv.conf chdir=/etc
+command: mkdir /etc/test creates=/etc/test
+script module --> to run script in managed nodes from control node
+removes(path)
+creates(path)
+chdir(path)
+os command
+free_form
+
+
+[root@linux-vm1 playbook]# cat prop-commandmod.yml 
+---
+- name: play to execute the command module properties
+  user: root
+  hosts: testing
+  become: true
+  tasks:
+    - name: task to change into a dir and view the file
+      command: cat resolv.conf chdir=/etc/
+    - name: create a new file under root
+      command: touch /root/file1 creates=/root/file1
+    - name: remove a file under root
+      command: rm -f /root/file2 removes=/root/file2
+...
+
+
+[root@linux-vm1 playbook]# cat prop-commandmod2.yml 
+---
+- name: play to execute the command module properties
+  user: root
+  hosts: testing
+  become: true
+  tasks:
+    - name: task to change into a dir and view the file
+      command: cat resolv.conf chdir=/etc/
+    - name: create a new file under root
+      file: state=touch creates=/root/file1
+    - name: remove a file under root
+      file: path=/root/file2 state=absent
+
+#######################################################################################################################################################################################
+
+##########################################################################################################################################################################################
+
+
+/etc/ansible/playbook.retry as a inventory
+ansible-playbook playbook1.yml --list-tasks
+ansible-playbook playbook1.yml --list-hosts
+ansible-playbook playbook1.yml --step
+ 
+ 
+firewalld: port=80/tcp permanent=true state=enabled --> add port 80 in the firewalld
+ansible all -m setup
+ansible linux-vm2.example.com -m setup -a "filter=ansible_hostname"
+
+######################################################################### ANSIBLE FACTS ###########################################################################################################
+facts gather the meta data of the remote host
+ansible all -m setup  --> to view all the facts gathered for remote host
+ansible all -m setup -a "filter=ansible_hostname" --> to get the hostname of the remote node
+
+
+[root@linux-vm1 playbook]# cat gather-facts-playbook.yml 
+---
+- name: play to know about gathering facts
+  user: root
+  become: true
+  hosts: all
+  gather_facts: yes
+  tasks: 
+    - name: first task to get os info
+      debug:                                  -----> debug is the module
+        msg:                                  -----> properties of the module debug
+          - "hostname is {{ ansible_hostname }}"
+          - "OS family is {{ ansible_os_family }}"
+          - "OS version is {{ ansible_distribution_version }}"
+          - free memory is {{ ansible_memfree_mb }}
+...
+
+###########################################################################################################################################################################################
+		  
+$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$		  
+$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+exercise to create user id's in ansible depends on request                                                                                 
+																																		   
+[root@linux-vm1 playbook]# cat exercise-loop-playbook1.yml                                                                                 
+---																																		   
+- name: play for creation os users with given inputs
+  user: root
+  hosts: all
+  tasks:
+    - name: create a group called ansgrp in the remote nodes
+      group: name=ansgrp state=present
+    - name: create users with given details in loop
+      user: name={{item.name}} state=present group=ansgrp password=Info$y$123 shell=/bin/bash home={{item.home}}
+      with_items:
+        - {name: 'ansibleuser1', home: '/home/ansibleuser1'}
+        - {name: 'ansibleuser2', home: '/home/ansibleuser2'}
+        - {name: 'ansibleuser3', home: '/home/ansibleuser3'}
+        - {name: 'ansibleuser4', home: '/home/ansibleuser4'}
+        - {name: 'ansibleuser5', home: '/home/ansibleuser5'}
+    - name: set the password policy for above created user id's
+      shell: passwd -x 90 -w 15 -n 10 {{item}}
+      with_items:
+        - ansibleuser1
+        - ansibleuser2
+        - ansibleuser3
+        - ansibleuser4
+        - ansibleuser5
+...
+
+$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+
+$$$$$$$$$$$$$$$$$$$$ template and jinja examples $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+[root@linux-vm1 playbook]# cat template-playbook.yml  ----> template make use of the facts gathered variables,, to make dynamic configuration files for the target nodes
+---
+- name: playbook to decribe the usage of template
+  user: root
+  hosts: testing
+  tasks:
+    - name: generate template and copy it to target node
+      template:
+        src=index.j2
+        dest=/var/www/html/index.html
+...
+
+[root@linux-vm1 playbook]# cat index.j2
+<html>
+  <head>
+    <title>
+      welcome
+    </title>
+  </head>
+  <body>
+    <h1>
+      hostname os {{ansible_hostname}}
+      domain name is {{ansible_domain}}
+      total swap space is {{ansible_swaptotal_mb}}
+    </h1>
+  </body>
+</html>
+[root@linux-vm1 playbook]# 
+
+$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+############################################################## HANDLERS ##########################################################################################################
+
+it is to trigger the handler from notify action
+[root@linux-vm1 playbook]# cat handlers-playbook.yml 
+---
+- name: play to work with handlers
+  user: root
+  hosts: testing
+  force_handlers: true
+  tasks:
+    - name: install httpd
+      yum: name=httpd state=present
+      notify:
+        - restart_httpd
+    - name: copy file
+      copy: src=/root/playbook/ndex.html dest=/var/www/html/
+      notify:
+        - restart_httpd
+  handlers:
+    - name: restart_httpd
+      service: name=httpd state=restarte
+
+
+		  
+#######################################################################################################################################################################################
+
+###################################################################### ANSIBLE ROLES ##################################################################################################
+
+ansible-galaxy list
+ansible-galaxy search rolename
+ansible-galaxy install role --> this download a file from the galaxy website to local machine(control node)
+organizing the playbook in better way, in standard structure,for portability,reuse, easy sharing
+ansible-galaxy init httpd_role
+cp httpd_role /etc/ansible/roles/
+we have many diretories under httpd_role created automatically in a template format, those are listed below
+1. defaults/main.yml ---> main.yml under the defaults directory hold the information of default variables
+2. files/index.html --> files under the httpd holds the files we are going to use in the tasks for copy & other activities
+3. handler/main.yml --> it holds the yml file to restart the service
+4. meta --> this directory holds data about author,company name, licence info about the role created
+5. tasks --> this holds the yml files , which are going to execute for the created role
+main.yml
+--- 
+- include: install_httpd.yml
+- include: start_service.yml
+- include: copy_httpd.yml
+- include: copy_index.yml
+
+[root@linux-vm1 tasks]# cat install_httpd.yml 
+---
+- name: install httpd
+  yum: name={{pack1}} state=present
+
+[root@linux-vm1 tasks]# cat start_service.yml 
+---
+- name: start the service httpd
+  service: name=httpd state=started
+
+[root@linux-vm1 tasks]# cat copy_httpd.yml 
+---
+- name: copy httpd config file
+  template: src=httpd.j2 dest=/var/www/html/htpd.conf
+  notify:
+    - restart_apache
+[root@linux-vm1 tasks]# cat copy_index.yml 
+---
+- name: copy index file
+  copy: src=index.html dest=/var/www/html/index.html
+
+6. templates --> holds the httpd.j2 file
+7. tests --> it have inventory file and test.yml file, to run the playbook in control node(local host) for testing purpose
+8. vars --> stores the extra variables files under main.yml
+
+ansible-playbook roles-playbook1.yml
+--- 
+- name: install and config httpd
+  user: root
+  hosts: testing
+  roles:
+    - httpd_role    ---> we can add multiples roles also
+...
+
+
+option A
+ansible adhoc and ansible play
+yum pack in centos
+ansible all -m ping
+elinks option a & d(chosen is a)
+--syntax-check
+db[01:15].cis.com
+option d to install samba packages
+albon and daniel (a) b also right
+AES 256 algorithm used by ansible-vault
+
+
+
+
+
+[root@linux-vm1 playbook]# cat uptime-playbook2.yml 
+---
+- name: play with single task
+  hosts: testing
+  user: root
+  become: true
+  tasks:
+    - name: check the system uptime
+      shell: uptime
+      register: hostname_output
+    - name: copy the output to a local file
+      debug: 
+        msg: "{{hostname_output}}"
+...
+ 
+[root@linux-vm1 playbook]# cat uptime-playbook.yml 
+---
+- name: play with single task
+  hosts: testing
+  user: root
+  become: true
+  tasks:
+    - name: check the system uptime
+      shell: uptime
+      register: hostname_output
+    - name: copy the output to a local file
+      copy: 
+        content: "{{hostname_output.stdout}}"
+        dest: /root/uptime.txt
+...
+ 
+ignore_errors: yes --> one of the options
