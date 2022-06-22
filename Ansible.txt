@@ -743,3 +743,58 @@ AES 256 algorithm used by ansible-vault
 ...
  
 ignore_errors: yes --> one of the options
+
+
+
+#######################################################################################################
+[root@ansible-master ansible_code]# cat condition.yml
+--- #gathering facts playbook
+ - hosts: dev
+   become: yes
+   connection: ssh
+   gather_facts: yes
+
+   tasks:
+     - name: install apache on debian
+       action: apt name=apache2 state=present
+       when: ansible_os_family == "Debian"
+     - name: install apache on redhat
+       action: yum name=httpd state=present
+       when: ansible_os_family == "RedHat"
+[root@ansible-master ansible_code]# cat handlers-webpage.yml
+---
+ - hosts: dev
+   become: yes
+
+   tasks:
+     - name: Install apache server
+       action: apt name=apache2 state=present
+       notify: host static webpage
+
+   handlers:
+     - name: host static webpage  #should match with notify details
+       script: hello.sh[root@ansible-master ansible_code]#
+
+######################################################################################3
+Register
+
+[root@ansible-master ansible_code]# cat ash-playbook-register.yml
+---
+- name: play for miscellaneous tasks
+  hosts: dev
+  become: true
+  tasks:
+  - name: run uptime
+    shell: uptime
+    register: data
+  - name: display the message
+    debug:
+      msg: "{{ data.stdout }}"
+
+output:
+TASK [display the message] **********************************************************************************************************************************
+ok: [ansible-node1] => {
+    "msg": " 07:31:07 up  2:32,  2 users,  load average: 0.00, 0.00, 0.00"
+}
+
+######################################################################################################################
