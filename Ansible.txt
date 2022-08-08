@@ -36,6 +36,9 @@ ansible_connection
 ansible_user
 ansible_ssh_pass
 ansible_port
+ansible_ssh_user
+
+/etc/ansible/ansible.cfg --> remote_user = ansadmin(we can use this as default user)
 
 vi /etc/ansible/hosts
 [linux-vm]
@@ -798,3 +801,55 @@ ok: [ansible-node1] => {
 }
 
 ######################################################################################################################
+
+---
+- name: first playbook
+  hosts: jenkins
+  become: true
+  tasks:
+  # purpose of this task is to check whether app is running or not in the server
+  - name: verify app/db is not running in the server
+    shell: if ps -eaf | egrep 'apache|hhtp' | grep -v 'grep' > /dev/null;then echo "process running";else echo "process not running";fi
+    ignore_errors: true
+    register: app_process_check
+
+  # task to determine whether we need to progress the task or quit
+  - name: decision point to start patching
+    fail: msg="{{ inventory_hostname }} has running application, please stop the app first and proceed with patching"
+    when: app_process_check.stdout == "process running"
+
+  # this task will update/install packages if application is stopped
+  - name: task to apply patch
+    yum: name="telnet" state=latest
+    when: app_process_check.stdout == "process not running" and ansible_distribution == "Amazon"
+    register: yum_update
+
+  # task to check whether system update happened or not, whether we need to reboot the server or not"
+  - name: check if reboot required after kernel update or not
+    shell: NEW_KERNEL=$(rpm -qa --last kernel | head -1 | awk '{print $1}' | sed 's/kernel-//');OLD_KERNEL=$(uname -r);if [[ $NEW_KERNEL == $OLD_KERNEL ]]; then echo "reboot_not_required"; else echo "reboot_required";fi
+    ignore_errors: true
+    register: reboot_status
+
+  # task to restart the system
+  - name: task to restart the system
+    command: shutdown -r +1
+    when: reboot_status.stdout == "reboot_required"
+    register: reboot_started
+    ignore_errors: true
+
+  # task to pause the steps for few minutes
+  - name: task to pause the process
+    pause:
+      minutes: 3
+
+  # task to wait for system to respond
+  - name: task check whether system is up or not
+    local_action:
+      module: wait_for
+        host={{ inventory_hostname }}
+        port=22
+        delay=15
+        timeout=300
+    when: reboot_started
+...
+
