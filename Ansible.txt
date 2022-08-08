@@ -131,7 +131,7 @@ vars_files:
 		- name: start httpd service
 		  service:
 		           name=httpd
-				   state=started
+		           state=started
 ...    #end of the playbook
 #      #to add comment on playbook
 
@@ -163,8 +163,8 @@ below can be run with ansible-playbook selinux-playbook1
     - name: play to change the selinux status
 	  lineinfile:
 	    path: /etc/selinux/config
-		regex: ^SELINUX=
-		line: SELINUX={{ status }}
+	    regex: ^SELINUX=
+	    line: SELINUX={{ status }}
 ...
 
 $$$$$$$$$alternative$$$$$$$$$$$$$$$$
@@ -258,8 +258,8 @@ ansible-playbook conditional-playbook.yml
     - yum: name={{item}} state=latest
 	  with_items:          ----------------> denotes loop
 	    - vsftpd
-		- httpd
-		- telnet
+	    - httpd
+	    - telnet
 ...
 
 loop:  -------------------------------> we can use this also instead of with_items
