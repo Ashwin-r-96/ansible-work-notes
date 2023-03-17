@@ -820,7 +820,7 @@ ok: [ansible-node1] => {
 
   # this task will update/install packages if application is stopped
   - name: task to apply patch
-    yum: name="telnet" state=latest
+    yum: name="telnet" state=latest disable_gpg_check=true
     when: app_process_check.stdout == "process not running" and ansible_distribution == "Amazon"
     register: yum_update
 
