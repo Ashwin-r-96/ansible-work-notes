@@ -246,7 +246,7 @@ ansible-playbook conditional-playbook.yml
    hosts: testing
    tasks:
      - service: name=httpd state=started
-	   when: ansible_host == "linux-vm2.example.com        -------------> denotes condition
+       when: ansible_host == "linux-vm2.example.com        -------------> denotes condition
 ...
 
 
@@ -256,7 +256,7 @@ ansible-playbook conditional-playbook.yml
   hosts: testing
   tasks:
     - yum: name={{item}} state=latest
-	  with_items:          ----------------> denotes loop
+      with_items:          ----------------> denotes loop
 	    - vsftpd
 	    - httpd
 	    - telnet
@@ -376,31 +376,31 @@ ansible-playbook part-playbook.yml    -----------> create a first partition and 
   become: true
   tasks:
     - name: create a first partition from /dev/sdb
-	  parted:
+      parted:
 	    device: /dev/sdb
-		number: 1
-		state: present
-		part_start: 2MiB
-		part_end: 5GiB
+	    number: 1
+	    state: present
+	    part_start: 2MiB
+	    part_end: 5GiB
 	- name: create a vg called vgdata from /dev/sdb1
 	  lvg:
 	    vg: vgdata
-		pvs: /dev/sdb1
+	    pvs: /dev/sdb1
 	- name: create a new lv called lvdata from vgdata
 	  lvol:
 	    vg: vgdata
-		lv: lvdata
-		size: 4G
+	    lv: lvdata
+	    size: 4G
 	- name: create a filesystem of type xfs for lvdata
 	  filesystem:
 	    fstype: xfs
-		dev: /dev/vgdata/lvdata
+	    dev: /dev/vgdata/lvdata
 	- name: mount the lvdata on /lvdata in managed node linux-vm2
 	  mount:
 	    name: /lvdata
-		src: /dev/vgdata/lvdata
-		fstype: xfs
-		state: mounted
+	    src: /dev/vgdata/lvdata
+            fstype: xfs
+	    state: mounted
 ...
 
 *********************************************************************************
@@ -416,18 +416,18 @@ ansible-playbook part-playbook2.yml    -----------> create second lv called lvda
     - name: create a new lv called lvdata2 from vgdata
 	  lvol:
 	    vg: vgdata
-		lv: lvdata2
-		size: 500M
+	    lv: lvdata2
+	    size: 500M
 	- name: create a filesystem of type xfs for lvdata
 	  filesystem:
 	    fstype: xfs
-		dev: /dev/vgdata/lvdata2
+	    dev: /dev/vgdata/lvdata2
 	- name: mount the lvdata2 on /lvdata2 in managed node linux-vm2
 	  mount:
 	    name: /lvdata2
-		src: /dev/vgdata/lvdata2
-		fstype: xfs
-		state: mounted
+	    src: /dev/vgdata/lvdata2
+            fstype: xfs
+	    state: mounted
 ...
 
 
